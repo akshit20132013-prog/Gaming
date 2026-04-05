@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#13395f" />
+    <title>Sam vs Mr. Clean — Deluxe Edition</title>
+    <style>
+      :root {
+        --bg-1: #0d2338;
+        --bg-2: #13395f;
+        --panel: #ecf6ff;
+        --ink: #1f2d3f;
+        --brand: #2f96f4;
+        --danger: #e84e5f;
+        --warning: #f3b357;
+        --ok: #49c38f;
+        --gold: #ffcd42;
+        --shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, "Segoe UI", system-ui, sans-serif;
+        color: var(--ink);
+        background: radial-gradient(circle at 30% 20%, #245488 0%, var(--bg-2) 45%, var(--bg-1) 100%);
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        -webkit-text-size-adjust: 100%;
+        touch-action: manipulation;
+      }
+
+      #app {
+        width: min(1200px, 97vw);
+        min-height: 95vh;
+        background: linear-gradient(180deg, #f7fcff, #dcefff);
+        border-radius: 24px;
+        border: 8px solid #fff;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        position: relative;
+      }
+
+      .screen {
+        display: none;
+        height: 100%;
+      }
+
+      .screen.active {
+        display: block;
+      }
+
+      /* Loading */
+      #loading-screen {
+        padding: 40px;
+        background: linear-gradient(145deg, #0b2f50, #174e7f);
+        color: #fff;
+        display: grid;
+        place-items: center;
+      }
+
+      .loading-card {
+        text-align: center;
+        width: min(550px, 90vw);
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 20px;
+        padding: 28px;
+        backdrop-filter: blur(2px);
+      }
+
+      .loading-logo {
+        font-size: clamp(1.8rem, 3.2vw, 3rem);
+        margin: 0 0 10px;
+      }
+
+      .loading-sub {
+        margin: 0 0 16px;
+        opacity: 0.95;
+      }
+
+      .loading-bar {
+        height: 18px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+      }
+
+      #loading-fill {
+        width: 0%;
+        height: 100%;
+        background: linear-gradient(90deg, #8de8ff, #3fd6ad, #ffdf62);
+      }
+
+      #loading-text {
+        margin-top: 10px;
+        font-weight: 700;
+      }
+
+      /* Intro */
+      #intro-screen {
+        padding: 26px;
+      }
+
+      .headline {
+        margin: 0;
+        font-size: clamp(1.4rem, 2.6vw, 2.4rem);
+      }
+
+      .subhead {
+        margin: 8px 0 14px;
+        color: #486683;
+        font-weight: 600;
+      }
+
+      .cast-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(220px, 1fr));
+        gap: 16px;
+        margin: 16px 0;
+      }
+
+      .cast-card {
+        background: #fff;
+        border: 2px solid #d9e8f6;
+        border-radius: 14px;
+        padding: 14px;
+      }
+
+      .cast-top {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+
+      .cast-avatar {
+        width: 64px;
+        height: 64px;
+        border-radius: 12px;
+        background: #eef7ff;
+        display: grid;
+        place-items: center;
+      }
+
+      .cast-avatar svg {
+        width: 52px;
+        height: 52px;
+      }
+
+      .chat-box {
+        min-height: 170px;
+        background: #fff;
+        border-radius: 12px;
+        border: 2px solid #d8e5f0;
+        padding: 12px;
+        overflow-y: auto;
+      }
+
+      .chat-line {
+        margin-bottom: 10px;
+        line-height: 1.4;
+      }
+
+      .primary-btn,
+      .secondary-btn {
+        border: 0;
+        padding: 12px 18px;
+        min-height: 44px;
+        border-radius: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .primary-btn {
+        color: #fff;
+        background: linear-gradient(145deg, #2f96f4, #116fc8);
+      }
+
+      .primary-btn:disabled {
+        background: #91b7dc;
+        cursor: not-allowed;
+      }
+
+      .secondary-btn {
+        background: #fff;
+        border: 2px solid #d5dfeb;
+      }
+
+      /* Game */
+      #game-screen {
+        padding: 18px 20px 22px;
+      }
+
+      .hud {
+        display: grid;
+        grid-template-columns: 1.2fr auto;
+        gap: 16px;
+        align-items: center;
+      }
+
+      .hud h2 {
+        margin: 0;
+      }
+
+      .hud small {
+        color: #587696;
+        font-weight: 600;
+      }
+
+      .stars {
+        font-size: 1.6rem;
+        letter-spacing: 2px;
+      }
+
+      .stats-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 14px;
+        align-items: center;
+        margin: 12px 0 16px;
+      }
+
+      .timer-box {
+        background: #fff;
+        border: 2px solid #cee2f4;
+        border-radius: 12px;
+        padding: 8px 12px;
+      }
+
+      .timer-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.9rem;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+
+      .timer-track {
+        width: 100%;
+        height: 20px;
+        background: #d7e6f4;
+        border-radius: 999px;
+        overflow: hidden;
+      }
+
+      #timer-fill {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, var(--ok), #89df6d);
+        transition: width 0.2s linear;
+      }
+
+      .objective-pill {
+        background: #fff;
+        border: 2px solid #d4e4f4;
+        border-radius: 999px;
+        padding: 10px 14px;
+        font-size: 0.92rem;
+        font-weight: 700;
+      }
+
+      .workspace {
+        min-height: 62vh;
+        background: linear-gradient(180deg, #f8fbff, #eef5fc);
+        border: 3px solid #d9e9f8;
+        border-radius: 18px;
+        padding: 14px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        gap: 12px;
+      }
+
+      .item-card {
+        position: relative;
+        background: #fff;
+        border: 2px solid #d7e6f5;
+        border-radius: 14px;
+        padding: 12px;
+        display: grid;
+        gap: 8px;
+        min-height: 178px;
+        box-shadow: 0 4px 14px rgba(24, 68, 112, 0.08);
+      }
+
+      .item-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #52708d;
+      }
+
+      .item-visual {
+        flex: 1;
+        background: #f5faff;
+        border: 1px solid #d9e8f5;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        min-height: 88px;
+      }
+
+      .item-visual svg {
+        width: 90px;
+        height: 90px;
+      }
+
+      .clean-btn {
+        border: 0;
+        border-radius: 10px;
+        padding: 12px;
+        min-height: 44px;
+        font-weight: 700;
+        background: linear-gradient(145deg, #44c79a, #23a57d);
+        color: #fff;
+        cursor: pointer;
+      }
+
+      .clean-btn:disabled {
+        background: #9fc7b8;
+        cursor: default;
+      }
+
+      .dirt-layer {
+        position: absolute;
+        inset: 0;
+        border-radius: 12px;
+        background: repeating-radial-gradient(circle at 20% 30%, rgba(121, 78, 39, 0.45) 0 8px, rgba(88, 51, 24, 0.65) 9px 13px);
+        opacity: var(--dirt-opacity, 0.8);
+        pointer-events: none;
+        transition: opacity 0.2s;
+      }
+
+      .item-card.cleaned {
+        border-color: #a4d8bf;
+        background: #f4fffa;
+      }
+
+      .banner {
+        margin-top: 10px;
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-weight: 700;
+      }
+
+      .banner.good {
+        background: #e8fff4;
+        border: 2px solid #95dbb6;
+        color: #16664d;
+      }
+
+      .banner.bad {
+        background: #fff1f4;
+        border: 2px solid #ffc5cf;
+        color: #9e2740;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(7, 20, 33, 0.6);
+        display: grid;
+        place-items: center;
+        z-index: 9;
+      }
+
+      .panel {
+        width: min(560px, 94vw);
+        background: #fff;
+        border-radius: 16px;
+        border: 3px solid #dce9f6;
+        padding: 22px;
+        text-align: center;
+      }
+
+      .panel p {
+        margin: 8px 0 12px;
+      }
+
+      .actions {
+        margin-top: 8px;
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      @media (max-width: 900px) {
+        #app {
+          width: 100vw;
+          min-height: 100vh;
+          border-radius: 0;
+          border: 0;
+        }
+        .cast-grid {
+          grid-template-columns: 1fr;
+        }
+        .hud {
+          grid-template-columns: 1fr;
+        }
+        .stats-row {
+          grid-template-columns: 1fr;
+        }
+        .workspace {
+          grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+          min-height: 56vh;
+        }
+      }
+
+      @media (max-width: 520px) {
+        #intro-screen,
+        #game-screen {
+          padding: 12px;
+        }
+
+        .workspace {
+          grid-template-columns: repeat(2, minmax(120px, 1fr));
+          gap: 8px;
+        }
+
+        .item-card {
+          min-height: 155px;
+          padding: 8px;
+        }
+
+        .item-visual svg {
+          width: 72px;
+          height: 72px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation: none !important;
+          transition: none !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <section id="loading-screen" class="screen active">
+        <div class="loading-card">
+          <h1 class="loading-logo">🧼 Sam vs Mr. Clean</h1>
+          <p class="loading-sub">Optimizing assets for desktop, tablet, and mobile...</p>
+          <div class="loading-bar"><div id="loading-fill"></div></div>
+          <div id="loading-text">0%</div>
+        </div>
+      </section>
+
+      <section id="intro-screen" class="screen">
+        <h1 class="headline">Sam vs Mr. Clean — Home Rescue</h1>
+        <p class="subhead">No menu. No pause. Clean fast before Mr. Clean arrives.</p>
+
+        <div class="cast-grid">
+          <article class="cast-card">
+            <div class="cast-top">
+              <div class="cast-avatar">
+                <svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="98" fill="#ffe9b8"/><circle cx="100" cy="80" r="35" fill="#f5c08b"/><rect x="58" y="118" width="84" height="58" rx="18" fill="#2f96f4"/><circle cx="86" cy="80" r="5" fill="#352a2a"/><circle cx="114" cy="80" r="5" fill="#352a2a"/><path d="M84 96 Q100 108 116 96" stroke="#7a4f2f" stroke-width="5" fill="none"/></svg>
+              </div>
+              <div><strong>Sam</strong><br/><small>Player</small></div>
+            </div>
+            <p>Sam has limited time to clean each location professionally.</p>
+          </article>
+
+          <article class="cast-card">
+            <div class="cast-top">
+              <div class="cast-avatar">
+                <svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="98" fill="#d8f5ff"/><circle cx="100" cy="80" r="35" fill="#f2be8b"/><rect x="54" y="116" width="92" height="60" rx="18" fill="#ef5f6a"/><circle cx="86" cy="80" r="5" fill="#272c34"/><circle cx="114" cy="80" r="5" fill="#272c34"/></svg>
+              </div>
+              <div><strong>Mr. Clean</strong><br/><small>Inspector</small></div>
+            </div>
+            <p>If your timer runs out before completion, inspection fails.</p>
+          </article>
+
+          <article class="cast-card">
+            <div class="cast-top">
+              <div class="cast-avatar">
+                <svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="98" fill="#efe8ff"/><circle cx="100" cy="82" r="34" fill="#f3c892"/><rect x="58" y="118" width="84" height="56" rx="18" fill="#2f96f4"/><circle cx="100" cy="132" r="19" fill="#fff" stroke="#7f8da8" stroke-width="5"/></svg>
+              </div>
+              <div><strong>Mr. Time</strong><br/><small>Wildcard</small></div>
+            </div>
+            <p>Blue coat boosts timer; red coat cuts your remaining time.</p>
+          </article>
+        </div>
+
+        <div id="chat-box" class="chat-box"></div>
+        <div style="margin-top: 12px">
+          <button id="start-btn" class="primary-btn" disabled>Start Cleaning Mission</button>
+        </div>
+      </section>
+
+      <section id="game-screen" class="screen">
+        <header class="hud">
+          <div>
+            <h2 id="level-title">Level 1</h2>
+            <small id="task-title"></small>
+          </div>
+          <div class="stars" id="stars">⭐⭐⭐</div>
+        </header>
+
+        <div class="stats-row">
+          <div class="timer-box">
+            <div class="timer-meta">
+              <span>Mr. Clean Arrival</span>
+              <span id="timer-text">100%</span>
+            </div>
+            <div class="timer-track"><div id="timer-fill"></div></div>
+          </div>
+          <div id="progress-pill" class="objective-pill">Level Progress</div>
+        </div>
+
+        <div id="workspace" class="workspace"></div>
+        <aside id="event-banner" class="banner hidden"></aside>
+      </section>
+
+      <section id="overlay" class="screen overlay hidden">
+        <div class="panel" id="overlay-panel"></div>
+      </section>
+    </div>
+
+    <script>
+      const itemIcons = {
+        dish: `<svg viewBox="0 0 100 100"><ellipse cx="50" cy="58" rx="36" ry="20" fill="#dceeff" stroke="#7aa9c9" stroke-width="4"/><ellipse cx="50" cy="58" rx="20" ry="10" fill="#f7fcff"/></svg>`,
+        bowl: `<svg viewBox="0 0 100 100"><path d="M18 46 Q50 84 82 46" fill="#e0f1ff" stroke="#6d9fc4" stroke-width="4"/><line x1="16" y1="46" x2="84" y2="46" stroke="#6d9fc4" stroke-width="4"/></svg>`,
+        glass: `<svg viewBox="0 0 100 100"><path d="M32 22 H68 L62 78 H38 Z" fill="#e5f6ff" stroke="#6fa3c8" stroke-width="4"/><line x1="40" y1="40" x2="60" y2="40" stroke="#8bc0dd" stroke-width="4"/></svg>`,
+        pan: `<svg viewBox="0 0 100 100"><circle cx="42" cy="56" r="22" fill="#d8e4ef" stroke="#7b8e9f" stroke-width="4"/><rect x="58" y="53" width="28" height="6" rx="3" fill="#8799ab"/></svg>`,
+        wall: `<svg viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" rx="6" fill="#f7efe0" stroke="#bca785" stroke-width="4"/><line x1="20" y1="45" x2="80" y2="45" stroke="#ceb798" stroke-width="3"/><line x1="50" y1="20" x2="50" y2="80" stroke="#ceb798" stroke-width="3"/></svg>`,
+        statue: `<svg viewBox="0 0 100 100"><rect x="30" y="70" width="40" height="10" fill="#bcc8d4"/><circle cx="50" cy="34" r="12" fill="#dbe4ee"/><rect x="38" y="46" width="24" height="24" rx="8" fill="#d2dde8"/></svg>`,
+        floor: `<svg viewBox="0 0 100 100"><rect x="16" y="24" width="68" height="52" fill="#f7f0e2" stroke="#c7b597" stroke-width="4"/><line x1="16" y1="50" x2="84" y2="50" stroke="#d3c2a6" stroke-width="3"/><line x1="38" y1="24" x2="38" y2="76" stroke="#d3c2a6" stroke-width="3"/><line x1="62" y1="24" x2="62" y2="76" stroke="#d3c2a6" stroke-width="3"/></svg>`,
+        car: `<svg viewBox="0 0 100 100"><path d="M20 58 L30 42 H70 L80 58 V68 H20 Z" fill="#8ec8ff" stroke="#3f7eb4" stroke-width="4"/><circle cx="34" cy="68" r="7" fill="#4d5f70"/><circle cx="66" cy="68" r="7" fill="#4d5f70"/></svg>`,
+        tire: `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="24" fill="#4c5965"/><circle cx="50" cy="50" r="10" fill="#9ba7b2"/></svg>`,
+        window: `<svg viewBox="0 0 100 100"><rect x="24" y="20" width="52" height="60" rx="8" fill="#d9f2ff" stroke="#79a8c8" stroke-width="4"/><line x1="24" y1="50" x2="76" y2="50" stroke="#9fc6df" stroke-width="3"/><line x1="50" y1="20" x2="50" y2="80" stroke="#9fc6df" stroke-width="3"/></svg>`,
+      };
+
+      const levelPools = [
+        {
+          area: "Kitchen Service",
+          task: "Clean dishes, bowls, pans and glasses before inspection.",
+          catalog: ["dish", "dish", "bowl", "glass", "pan", "bowl", "dish", "glass", "pan", "glass"],
+        },
+        {
+          area: "Balcony & Hallway",
+          task: "Remove grime from walls, floors and statues.",
+          catalog: ["wall", "floor", "statue", "wall", "floor", "statue", "wall", "floor", "statue", "floor"],
+        },
+        {
+          area: "Car Detailing Bay",
+          task: "Clean car body, windows and wheels to showroom quality.",
+          catalog: ["car", "window", "tire", "window", "car", "tire", "window", "car", "tire", "window"],
+        },
+      ];
+
+      function buildLevels(totalLevels = 36) {
+        const results = [];
+        for (let i = 0; i < totalLevels; i += 1) {
+          const pool = levelPools[i % levelPools.length];
+          const tier = Math.floor(i / levelPools.length);
+          const itemCount = 9 + Math.min(9, Math.floor(i / 2));
+          const items = [];
+          for (let j = 0; j < itemCount; j += 1) {
+            items.push(pool.catalog[(j + i) % pool.catalog.length]);
+          }
+
+          results.push({
+            name: `${pool.area} ${tier + 1}`,
+            task: pool.task,
+            timeLimit: 100 + Math.min(120, tier * 6 + (i % 3) * 3),
+            items,
+          });
+        }
+        return results;
+      }
+
+      const levels = buildLevels(36);
+
+      const chatScript = [
+        ["Mr. Clean", "Sam, I am heading to your home for a full inspection."],
+        ["Sam", "Right now? I need to clean everything before you arrive!"],
+        ["Mr. Clean", "Correct. Every level has a timer bar. Miss it and inspection fails."],
+        ["Sam", "What about Mr. Time?"],
+        ["Mr. Clean", "He appears only two or three times. Blue coat helps, red coat hurts."],
+        ["Sam", "Understood. I will finish every area professionally."],
+      ];
+
+      const state = {
+        levelIndex: 0,
+        timeLeftPercent: 100,
+        timerId: null,
+        stars: 3,
+        cleanedCount: 0,
+        adRevivesUsed: 0,
+        maxAdRevives: 3,
+        mrTimeCount: 0,
+        mrTimeMax: Math.random() < 0.5 ? 2 : 3,
+        mrTimeTriggeredInLevel: false,
+      };
+
+      const screens = {
+        loading: document.getElementById("loading-screen"),
+        intro: document.getElementById("intro-screen"),
+        game: document.getElementById("game-screen"),
+      };
+      const loadingFill = document.getElementById("loading-fill");
+      const loadingText = document.getElementById("loading-text");
+      const chatBox = document.getElementById("chat-box");
+      const startBtn = document.getElementById("start-btn");
+      const levelTitle = document.getElementById("level-title");
+      const taskTitle = document.getElementById("task-title");
+      const starsText = document.getElementById("stars");
+      const timerFill = document.getElementById("timer-fill");
+      const timerText = document.getElementById("timer-text");
+      const progressPill = document.getElementById("progress-pill");
+      const workspace = document.getElementById("workspace");
+      const eventBanner = document.getElementById("event-banner");
+      const overlay = document.getElementById("overlay");
+      const overlayPanel = document.getElementById("overlay-panel");
+
+      const clamp = (num, min, max) => Math.max(min, Math.min(max, num));
+
+      function switchScreen(next) {
+        Object.values(screens).forEach((section) => section.classList.remove("active"));
+        screens[next].classList.add("active");
+      }
+
+      function runLoading() {
+        let progress = 0;
+        const timer = setInterval(() => {
+          progress += Math.floor(Math.random() * 12) + 6;
+          if (progress > 100) progress = 100;
+          loadingFill.style.width = `${progress}%`;
+          loadingText.textContent = `${progress}%`;
+
+          if (progress >= 100) {
+            clearInterval(timer);
+            setTimeout(() => {
+              switchScreen("intro");
+              runIntroChat();
+            }, 450);
+          }
+        }, 180);
+      }
+
+      function runIntroChat() {
+        let i = 0;
+        const timer = setInterval(() => {
+          const [speaker, line] = chatScript[i];
+          const row = document.createElement("div");
+          row.className = "chat-line";
+          row.innerHTML = `<strong>${speaker}:</strong> ${line}`;
+          chatBox.appendChild(row);
+          chatBox.scrollTop = chatBox.scrollHeight;
+          i += 1;
+          if (i >= chatScript.length) {
+            clearInterval(timer);
+            startBtn.disabled = false;
+          }
+        }, 900);
+      }
+
+      function startGame() {
+        switchScreen("game");
+        loadLevel(0);
+      }
+
+      function getLevel() {
+        return levels[state.levelIndex];
+      }
+
+      function getStarCount() {
+        const t = state.timeLeftPercent;
+        if (t < 15) return 0;
+        if (t < 30) return 1;
+        if (t < 45) return 2;
+        return 3;
+      }
+
+      function updateHud() {
+        const level = getLevel();
+        state.stars = getStarCount();
+        const safeTime = clamp(state.timeLeftPercent, 0, 100);
+        timerFill.style.width = `${safeTime}%`;
+        timerText.textContent = `${Math.ceil(safeTime)}%`;
+        starsText.textContent = "⭐".repeat(state.stars) + "✩".repeat(3 - state.stars);
+        progressPill.textContent = `Level ${state.levelIndex + 1}/${levels.length} · Cleaned ${state.cleanedCount}/${level.items.length}`;
+
+        if (safeTime < 30) timerFill.style.background = "linear-gradient(90deg, #e84e5f, #ff9061)";
+        else if (safeTime < 45) timerFill.style.background = "linear-gradient(90deg, #f3b357, #ffd56c)";
+        else timerFill.style.background = "linear-gradient(90deg, #49c38f, #9be060)";
+      }
+
+      function createItemCard(type, index) {
+        const card = document.createElement("article");
+        card.className = "item-card";
+        card.dataset.health = String(3);
+        card.style.setProperty("--dirt-opacity", "0.8");
+
+        const head = document.createElement("div");
+        head.className = "item-head";
+        head.innerHTML = `<span>${type.toUpperCase()}</span><span>#${index + 1}</span>`;
+
+        const visual = document.createElement("div");
+        visual.className = "item-visual";
+        visual.innerHTML = itemIcons[type] || itemIcons.dish;
+
+        const dirtLayer = document.createElement("div");
+        dirtLayer.className = "dirt-layer";
+
+        const cleanBtn = document.createElement("button");
+        cleanBtn.className = "clean-btn";
+        cleanBtn.textContent = "Clean";
+
+        cleanBtn.addEventListener("click", () => {
+          if (cleanBtn.disabled) return;
+          const current = Number(card.dataset.health);
+          const next = current - 1;
+          card.dataset.health = String(next);
+
+          const opacity = clamp(next / 3, 0, 1) * 0.8;
+          card.style.setProperty("--dirt-opacity", String(opacity));
+
+          if (next <= 0) {
+            cleanBtn.disabled = true;
+            cleanBtn.textContent = "Cleaned ✔";
+            card.classList.add("cleaned");
+            state.cleanedCount += 1;
+            updateHud();
+            maybeCompleteLevel();
+          }
+        });
+
+        card.append(head, visual, cleanBtn, dirtLayer);
+        return card;
+      }
+
+      function renderLevelItems() {
+        const level = getLevel();
+        workspace.innerHTML = "";
+        level.items.forEach((itemType, i) => workspace.appendChild(createItemCard(itemType, i)));
+      }
+
+      function loadLevel(index) {
+        state.levelIndex = index;
+        state.timeLeftPercent = 100;
+        state.cleanedCount = 0;
+        state.mrTimeTriggeredInLevel = false;
+        clearInterval(state.timerId);
+
+        const level = getLevel();
+        levelTitle.textContent = `Level ${index + 1}: ${level.name}`;
+        taskTitle.textContent = level.task;
+
+        renderLevelItems();
+        updateHud();
+        beginTimer();
+      }
+
+      function beginTimer() {
+        const level = getLevel();
+        const drainPerTick = 100 / (level.timeLimit * 5);
+        state.timerId = setInterval(() => {
+          state.timeLeftPercent -= drainPerTick;
+          state.timeLeftPercent = clamp(state.timeLeftPercent, 0, 100);
+          maybeTriggerMrTime();
+          updateHud();
+          checkFailState();
+        }, 200);
+      }
+
+      function maybeTriggerMrTime() {
+        if (state.mrTimeTriggeredInLevel) return;
+        if (state.mrTimeCount >= state.mrTimeMax) return;
+
+        const level = getLevel();
+        const progress = state.cleanedCount / level.items.length;
+        if (progress < 0.35) return;
+        if (Math.random() > 0.01) return;
+
+        state.mrTimeTriggeredInLevel = true;
+        state.mrTimeCount += 1;
+
+        const blue = Math.random() > 0.5;
+        const delta = blue ? 20 : -16;
+        state.timeLeftPercent = clamp(state.timeLeftPercent + delta, 0, 100);
+
+        eventBanner.className = `banner ${blue ? "good" : "bad"}`;
+        eventBanner.textContent = blue
+          ? `Mr. Time met Mr. Clean in BLUE coat: +${delta}% time!`
+          : `Mr. Time met Mr. Clean in RED coat: ${delta}% time.`;
+
+        setTimeout(() => {
+          eventBanner.classList.add("hidden");
+        }, 2800);
+      }
+
+      function maybeCompleteLevel() {
+        const level = getLevel();
+        if (state.cleanedCount < level.items.length) return;
+        clearInterval(state.timerId);
+
+        const stars = state.stars;
+        const next = state.levelIndex + 1;
+
+        if (next >= levels.length) {
+          showOverlay(`
+            <h2>🏆 Perfect! House Saved</h2>
+            <p>Sam completed all cleaning missions before Mr. Clean arrived.</p>
+            <p><strong>Final Level Stars:</strong> ${stars}/3</p>
+            <div class="actions">
+              <button class="primary-btn" id="restart-btn">Play Again</button>
+            </div>
+          `);
+          document.getElementById("restart-btn").onclick = () => window.location.reload();
+          return;
+        }
+
+        showOverlay(`
+          <h2>Level Cleared ✅</h2>
+          <p>${level.name} is professionally cleaned.</p>
+          <p><strong>Stars:</strong> ${stars}/3</p>
+          <div class="actions">
+            <button class="primary-btn" id="next-btn">Next Level</button>
+          </div>
+        `);
+
+        document.getElementById("next-btn").onclick = () => {
+          hideOverlay();
+          loadLevel(next);
+        };
+      }
+
+      function checkFailState() {
+        if (state.timeLeftPercent > 0 && state.stars > 0) return;
+        clearInterval(state.timerId);
+
+        if (state.adRevivesUsed < state.maxAdRevives) {
+          showOverlay(`
+            <h2>Mr. Clean Arrived ⏰</h2>
+            <p>Watch an ad-style revive to continue this level.</p>
+            <p><strong>Revives:</strong> ${state.adRevivesUsed}/${state.maxAdRevives}</p>
+            <div class="actions">
+              <button class="primary-btn" id="revive-btn">Watch Ad (+25% time)</button>
+              <button class="secondary-btn" id="quit-btn">End Run</button>
+            </div>
+          `);
+
+          document.getElementById("revive-btn").onclick = () => {
+            state.adRevivesUsed += 1;
+            state.timeLeftPercent = clamp(state.timeLeftPercent + 25, 0, 100);
+            hideOverlay();
+            beginTimer();
+          };
+
+          document.getElementById("quit-btn").onclick = showGameOver;
+        } else {
+          showGameOver();
+        }
+      }
+
+      function showGameOver() {
+        showOverlay(`
+          <h2>Game Over</h2>
+          <p>Inspection failed. Mr. Clean arrived before full completion.</p>
+          <div class="actions">
+            <button class="primary-btn" id="retry-btn">Retry From Start</button>
+          </div>
+        `);
+        document.getElementById("retry-btn").onclick = () => window.location.reload();
+      }
+
+      function showOverlay(html) {
+        overlayPanel.innerHTML = html;
+        overlay.classList.remove("hidden");
+        overlay.classList.add("active");
+      }
+
+      function hideOverlay() {
+        overlay.classList.add("hidden");
+        overlay.classList.remove("active");
+      }
+
+      startBtn.addEventListener("click", startGame);
+      runLoading();
+    </script>
+  </body>
+</html>
