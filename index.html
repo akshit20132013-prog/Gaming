@@ -337,6 +337,31 @@
         gap: 8px;
       }
 
+      .item-status {
+        margin: 0;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #54718e;
+        text-align: center;
+      }
+
+      .foam-layer {
+        position: absolute;
+        inset: 8px;
+        border-radius: 10px;
+        background:
+          radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.55) 0 10%, transparent 11%),
+          radial-gradient(circle at 55% 58%, rgba(255, 255, 255, 0.5) 0 7%, transparent 8%),
+          radial-gradient(circle at 72% 34%, rgba(255, 255, 255, 0.44) 0 9%, transparent 10%);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+      }
+
+      .foam-layer.active {
+        opacity: 1;
+      }
+
       .tool-btn {
         border: 2px solid #cfe1f3;
         border-radius: 10px;
@@ -576,6 +601,17 @@
         window: `<svg viewBox="0 0 140 140"><defs><linearGradient id="winA" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#e9f9ff"/><stop offset="100%" stop-color="#99c9e4"/></linearGradient></defs><rect x="32" y="22" width="76" height="96" rx="10" fill="url(#winA)" stroke="#5e8ca9" stroke-width="4"/><line x1="70" y1="22" x2="70" y2="118" stroke="#7fabc5" stroke-width="4"/><line x1="32" y1="70" x2="108" y2="70" stroke="#7fabc5" stroke-width="4"/></svg>`,
       };
 
+      function withUniqueSvgIds(svg, suffix) {
+        const idMap = new Map();
+        let next = svg.replace(/id="([^"]+)"/g, (_, oldId) => {
+          const newId = `${oldId}-${suffix}`;
+          idMap.set(oldId, newId);
+          return `id="${newId}"`;
+        });
+        next = next.replace(/url\(#([^)]+)\)/g, (_, oldId) => `url(#${idMap.get(oldId) || oldId})`);
+        return next;
+      }
+
       const levelPools = [
         {
           area: "Kitchen Service",
@@ -755,6 +791,19 @@
         }
       }
 
+      function estimateDirtyPercent(canvas) {
+        const ctx = canvas.getContext("2d");
+        const { width, height } = canvas;
+        const data = ctx.getImageData(0, 0, width, height).data;
+        let visiblePixels = 0;
+
+        for (let i = 3; i < data.length; i += 16) {
+          if (data[i] > 20) visiblePixels += 1;
+        }
+        const total = Math.ceil(data.length / 16);
+        return total > 0 ? (visiblePixels / total) * 100 : 0;
+      }
+
       function createItemCard(type, index) {
         const card = document.createElement("article");
         card.className = "item-card";
@@ -768,10 +817,13 @@
 
         const visual = document.createElement("div");
         visual.className = "item-visual";
-        visual.innerHTML = itemIcons[type] || itemIcons.dish;
+        visual.innerHTML = withUniqueSvgIds(itemIcons[type] || itemIcons.dish, `${type}-${index}`);
 
         const dirtLayer = document.createElement("div");
         dirtLayer.className = "dirt-layer";
+
+        const foamLayer = document.createElement("div");
+        foamLayer.className = "foam-layer";
 
         const canvas = document.createElement("canvas");
         canvas.className = "dirt-canvas";
@@ -779,11 +831,15 @@
         canvas.height = 180;
         paintDirt(canvas);
 
-        let scrubScore = 0;
         let isScrubbing = false;
+        let dirtyPercent = 100;
 
         const toolRow = document.createElement("div");
         toolRow.className = "tool-row";
+
+        const status = document.createElement("p");
+        status.className = "item-status";
+        status.textContent = "Step 1: Apply soap";
 
         const soapBtn = document.createElement("button");
         soapBtn.className = "tool-btn";
@@ -803,6 +859,8 @@
           card.dataset.soap = "1";
           soapBtn.classList.add("active");
           scrubBtn.classList.add("active");
+          foamLayer.classList.add("active");
+          status.textContent = "Step 2: Scrub dirt away";
         });
 
         function scrubAt(clientX, clientY) {
@@ -820,12 +878,15 @@
           ctx.fill();
           ctx.restore();
 
-          scrubScore += 1;
-          card.dataset.scrub = String(scrubScore);
-          if (scrubScore >= 65) {
+          dirtyPercent = estimateDirtyPercent(canvas);
+          card.dataset.scrub = String(Math.round(100 - dirtyPercent));
+          status.textContent = `Step 2: Scrub (${Math.round(100 - dirtyPercent)}% clean)`;
+
+          if (dirtyPercent <= 28) {
             scrubBtn.classList.add("active");
             rinseBtn.disabled = false;
             rinseBtn.classList.add("active");
+            status.textContent = "Step 3: Rinse with water";
           }
         }
 
@@ -844,23 +905,29 @@
         );
 
         rinseBtn.addEventListener("click", () => {
-          if (scrubScore < 65 || card.classList.contains("cleaned")) return;
+          if (dirtyPercent > 28 || card.classList.contains("cleaned")) return;
           card.dataset.rinse = "1";
           const ctx = canvas.getContext("2d");
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           canvas.style.pointerEvents = "none";
+          foamLayer.classList.remove("active");
           soapBtn.disabled = true;
           scrubBtn.disabled = true;
           rinseBtn.disabled = true;
           card.classList.add("cleaned");
+          status.textContent = "Professional clean complete ✔";
           state.cleanedCount += 1;
           updateHud();
           maybeCompleteLevel();
         });
 
-        visual.append(dirtLayer, canvas);
+        soapBtn.setAttribute("aria-label", "Apply soap");
+        scrubBtn.setAttribute("aria-label", "Scrub dirt");
+        rinseBtn.setAttribute("aria-label", "Rinse with water");
+
+        visual.append(dirtLayer, foamLayer, canvas);
         toolRow.append(soapBtn, scrubBtn, rinseBtn);
-        card.append(head, visual, toolRow);
+        card.append(head, visual, toolRow, status);
         return card;
       }
 
