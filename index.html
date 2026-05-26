@@ -1,1 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perfect Fit</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --fever-bg: #160022;
+      --player: #00f5ff;
+      --wall: #ff00d4;
+      --shard: #ffe600;
+      --ui: #ffffff;
+    }
 
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ui);
+      overflow: hidden;
+    }
+
+    #game-wrap {
+      width: 450px;
+      height: 800px;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      background: var(--bg);
+    }
+
+    canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-wrap"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+  <script>
+    (() => {
+      const GAME_W = 450;
+      const GAME_H = 800;
+      const PLAYER_X = 225;
+      const PLAYER_Y = 680;
+
+      const COLORS = {
+        BG: 0x000000,
+        FEVER_BG: 0x160022,
+        PLAYER: 0x00f5ff,
+        WALL: 0xff00d4,
+        SHARD: 0xffe600,
+        WHITE: 0xffffff,
+      };
+
+      // T-shape definitions in 4 rotations; each item is [x, y, w, h], centered at (0,0)
+      // Rotation index: 0=up, 1=right, 2=down, 3=left
+      const T_SHAPES = [
+        [ [-45, -15, 90, 30], [-15, -15, 30, 90] ],
+        [ [-15, -45, 30, 90], [-15, -15, 90, 30] ],
+        [ [-45, -15, 90, 30], [-15, -75, 30, 90] ],
+        [ [-15, -45, 30, 90], [-75, -15, 90, 30] ],
+      ];
+
+      class PerfectFitScene extends Phaser.Scene {
+        constructor() {
+          super('PerfectFit');
+          this.baseSpeed = 300;
+          this.speedInc = 15;
+          this.wallSpawnGap = 220;
+          this.wallThickness = 90;
+          this.playerRotationIndex = 0;
+          this.nextWallId = 1;
+          this.feverActive = false;
+          this.feverTimeLeft = 0;
+          this.combo = 0;
+          this.comboWindowMs = 1000;
+          this.lastPerfectMs = -99999;
+          this.totalShards = Number(localStorage.getItem('perfect_fit_total_shards') || 0);
+          this.highScore = Number(localStorage.getItem('perfect_fit_high_score') || 0);
+        }
+
+        create() {
+          this.resetState();
+          this.buildWorld();
+          this.buildUI();
+          this.setupInput();
+          this.startAudio();
+        }
+
+        resetState() {
+          this.score = 0;
+          this.multiplier = 1;
+          this.currentSpeed = this.baseSpeed;
+          this.playerRotationIndex = 0;
+          this.wallsPassed = 0;
+          this.nextWallId = 1;
+          this.feverActive = false;
+          this.feverTimeLeft = 0;
+          this.combo = 0;
+          this.lastPerfectMs = -99999;
+          this.gameOver = false;
+          this.spawnTimer = 0;
+        }
+
+        buildWorld() {
+          this.cameras.main.setBackgroundColor(COLORS.BG);
+          this.bgRect = this.add.rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, COLORS.BG);
+
+          this.walls = this.add.group();
+          this.wallData = new Map();
+
+          this.playerContainer = this.add.container(PLAYER_X, PLAYER_Y);
+          this.playerParts = [];
+          this.drawTShapeToContainer(this.playerContainer, this.playerRotationIndex, COLORS.PLAYER, this.playerParts);
+
+          this.particleGraphics = this.add.graphics();
+
+          this.overlay = this.add.container(0, 0).setDepth(100).setVisible(false);
+          const dim = this.add.rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, 0x000000, 0.65);
+          this.goTitle = this.add.text(GAME_W / 2, 300, 'GAME OVER', {
+            fontFamily: 'Arial Black', fontSize: '42px', color: '#ffffff', stroke: '#ff00d4', strokeThickness: 6
+          }).setOrigin(0.5);
+          this.goScore = this.add.text(GAME_W / 2, 390, '', { fontSize: '30px', color: '#ffffff' }).setOrigin(0.5);
+          this.goHigh = this.add.text(GAME_W / 2, 440, '', { fontSize: '24px', color: '#00f5ff' }).setOrigin(0.5);
+          this.goShard = this.add.text(GAME_W / 2, 485, '', { fontSize: '20px', color: '#ffe600' }).setOrigin(0.5);
+          const btn = this.add.rectangle(GAME_W / 2, 570, 260, 74, 0x00bcd4, 0.18).setStrokeStyle(3, COLORS.PLAYER, 1).setInteractive();
+          const btnText = this.add.text(GAME_W / 2, 570, 'TAP TO RESTART', { fontSize: '26px', color: '#ffffff' }).setOrigin(0.5);
+          btn.on('pointerdown', () => this.restartGame());
+          this.overlay.add([dim, this.goTitle, this.goScore, this.goHigh, this.goShard, btn, btnText]);
+        }
+
+        buildUI() {
+          this.scoreText = this.add.text(16, 14, 'Score: 0', { fontSize: '28px', color: '#ffffff' });
+          this.shardText = this.add.text(16, 50, `Shards: ${this.totalShards}`, { fontSize: '20px', color: '#ffe600' });
+          this.feverText = this.add.text(GAME_W - 14, 16, '', { fontSize: '22px', color: '#ff99ff' }).setOrigin(1, 0);
+        }
+
+        setupInput() {
+          this.input.on('pointerdown', (pointer) => {
+            if (this.gameOver) return;
+            if (pointer.x < GAME_W / 2) this.rotatePlayer(-1);
+            else this.rotatePlayer(1);
+          });
+        }
+
+        startAudio() {
+          this.audioCtx = null;
+          this.resumeAudio = () => {
+            if (!this.audioCtx) {
+              this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+          };
+          this.input.once('pointerdown', this.resumeAudio);
+        }
+
+        playBeep(frequency = 800, duration = 0.08, type = 'square') {
+          if (!this.audioCtx) return;
+          const t0 = this.audioCtx.currentTime;
+          const osc = this.audioCtx.createOscillator();
+          const gain = this.audioCtx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(frequency, t0);
+          osc.frequency.exponentialRampToValueAtTime(frequency * 1.2, t0 + duration);
+          gain.gain.setValueAtTime(0.0001, t0);
+          gain.gain.exponentialRampToValueAtTime(0.15, t0 + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+          osc.connect(gain);
+          gain.connect(this.audioCtx.destination);
+          osc.start(t0);
+          osc.stop(t0 + duration + 0.01);
+        }
+
+        rotatePlayer(dir) {
+          this.playerRotationIndex = (this.playerRotationIndex + dir + 4) % 4;
+          this.playerContainer.rotation = Phaser.Math.DegToRad(this.playerRotationIndex * 90);
+        }
+
+        drawTShapeToContainer(container, rotIndex, color, collector) {
+          const parts = T_SHAPES[0];
+          parts.forEach(([x, y, w, h]) => {
+            const r = this.add.rectangle(x + w/2, y + h/2, w, h, color);
+            r.setStrokeStyle(2, 0xffffff, 0.2);
+            collector.push(r);
+            container.add(r);
+          });
+          container.rotation = Phaser.Math.DegToRad(rotIndex * 90);
+        }
+
+        spawnWall() {
+          const cutoutRot = Phaser.Math.Between(0, 3);
+          const wallY = -this.wallThickness;
+          const wallId = this.nextWallId++;
+
+          const wall = this.add.container(GAME_W / 2, wallY);
+          const rect = this.add.rectangle(0, 0, GAME_W, this.wallThickness, COLORS.WALL).setOrigin(0.5);
+          rect.setStrokeStyle(2, 0xff6ce9, 0.8);
+          wall.add(rect);
+
+          const holeMask = this.add.graphics();
+          holeMask.fillStyle(0xffffff, 1);
+          const holeParts = T_SHAPES[0];
+          const holeScale = 0.9;
+          const m = new Phaser.GameObjects.Container(this, 0, 0);
+          holeParts.forEach(([x, y, w, h]) => {
+            const sx = x * holeScale;
+            const sy = y * holeScale;
+            const sw = w * holeScale;
+            const sh = h * holeScale;
+            const rx = sx + sw / 2;
+            const ry = sy + sh / 2;
+            holeMask.fillRect(rx - sw / 2, ry - sh / 2, sw, sh);
+          });
+          holeMask.x = wall.x;
+          holeMask.y = wall.y;
+          holeMask.rotation = Phaser.Math.DegToRad(cutoutRot * 90);
+
+          // Simulate cutout using blend mode ERASE on a RenderTexture for clean silhouette hole.
+          const rt = this.add.renderTexture(0, 0, GAME_W, this.wallThickness).setOrigin(0.5);
+          rt.fill(COLORS.WALL, 1);
+          const eraseG = this.make.graphics({ x: 0, y: 0, add: false });
+          eraseG.fillStyle(0xffffff, 1);
+          holeParts.forEach(([x, y, w, h]) => {
+            const sx = x * holeScale;
+            const sy = y * holeScale;
+            const sw = w * holeScale;
+            const sh = h * holeScale;
+            eraseG.fillRect(GAME_W/2 + sx, this.wallThickness/2 + sy, sw, sh);
+          });
+          rt.saveTexture(`walltex-${wallId}`);
+          rt.clear();
+          rt.fill(COLORS.WALL, 1);
+          eraseG.rotation = Phaser.Math.DegToRad(cutoutRot * 90);
+          eraseG.setPosition(GAME_W/2, this.wallThickness/2);
+          rt.erase(eraseG);
+          eraseG.destroy();
+
+          wall.removeAll(true);
+          const img = this.add.image(0, 0, `walltex-${wallId}`);
+          img.setDisplaySize(GAME_W, this.wallThickness);
+          wall.add(img);
+
+          let shard = null;
+          if (Math.random() < 0.2) {
+            shard = this.add.rectangle(0, 0, 14, 14, COLORS.SHARD);
+            shard.rotation = Phaser.Math.DegToRad(cutoutRot * 90);
+            shard.setStrokeStyle(1, 0xffffff, 0.4);
+            wall.add(shard);
+          }
+
+          this.walls.add(wall);
+          this.wallData.set(wallId, {
+            id: wallId,
+            wall,
+            cutoutRot,
+            passedCheck: false,
+            shard,
+            textureKey: `walltex-${wallId}`,
+          });
+          wall.setData('id', wallId);
+        }
+
+        update(time, delta) {
+          if (this.gameOver) return;
+
+          const dt = delta / 1000;
+          this.spawnTimer += delta;
+
+          if (this.spawnTimer >= this.wallSpawnGap) {
+            this.spawnTimer = 0;
+            this.spawnWall();
+          }
+
+          if (this.feverActive) {
+            this.feverTimeLeft -= dt;
+            if (this.feverTimeLeft <= 0) {
+              this.deactivateFever();
+            } else {
+              this.feverText.setText(`FEVER ${this.feverTimeLeft.toFixed(1)}s`);
+            }
+          }
+
+          const effectiveSpeed = this.currentSpeed * (this.feverActive ? 1.5 : 1);
+
+          this.walls.getChildren().forEach((wall) => {
+            const id = wall.getData('id');
+            const data = this.wallData.get(id);
+            if (!data) return;
+            wall.y += effectiveSpeed * dt;
+
+            if (!data.passedCheck && wall.y + this.wallThickness / 2 >= PLAYER_Y) {
+              data.passedCheck = true;
+              const matched = this.playerRotationIndex === data.cutoutRot;
+
+              if (matched) {
+                const alignErr = Math.abs((wall.y + this.wallThickness / 2) - PLAYER_Y);
+                this.handlePass(data, time, alignErr);
+              } else {
+                this.handleGameOver();
+              }
+            }
+
+            if (wall.y - this.wallThickness / 2 > GAME_H + 100) {
+              this.cleanupWall(data);
+            }
+          });
+        }
+
+        handlePass(data, time, alignErr) {
+          this.wallsPassed += 1;
+          this.currentSpeed += this.speedInc;
+          const gained = this.feverActive ? 2 : 1;
+          this.score += gained;
+          this.scoreText.setText(`Score: ${this.score}`);
+
+          // tight alignment combo threshold
+          if (alignErr <= 8 && (time - this.lastPerfectMs) <= this.comboWindowMs) {
+            this.combo++;
+          } else {
+            this.combo = 1;
+          }
+          this.lastPerfectMs = time;
+
+          if (this.combo >= 3 && !this.feverActive) {
+            this.activateFever();
+          }
+
+          if (data.shard) {
+            this.totalShards += 1;
+            localStorage.setItem('perfect_fit_total_shards', this.totalShards);
+            this.shardText.setText(`Shards: ${this.totalShards}`);
+            this.tweens.add({ targets: data.shard, scaleX: 1.8, scaleY: 1.8, alpha: 0, duration: 150, onComplete: () => data.shard?.destroy() });
+          }
+
+          this.playBeep(this.feverActive ? 1040 : 840, 0.07, 'triangle');
+          this.flashWall(data);
+        }
+
+        flashWall(data) {
+          const wallObj = data.wall;
+          this.tweens.add({
+            targets: wallObj,
+            alpha: 0.15,
+            duration: 60,
+            yoyo: true,
+            onStart: () => {
+              const f = this.add.rectangle(wallObj.x, wallObj.y, GAME_W, this.wallThickness, COLORS.WHITE, 0.85).setBlendMode(Phaser.BlendModes.ADD);
+              this.tweens.add({ targets: f, alpha: 0, duration: 120, onComplete: () => f.destroy() });
+            },
+            onComplete: () => this.cleanupWall(data)
+          });
+        }
+
+        activateFever() {
+          this.feverActive = true;
+          this.feverTimeLeft = 5;
+          this.multiplier = 2;
+          this.bgRect.fillColor = COLORS.FEVER_BG;
+          this.feverText.setText('FEVER 5.0s');
+          this.playBeep(1200, 0.12, 'sawtooth');
+        }
+
+        deactivateFever() {
+          this.feverActive = false;
+          this.feverTimeLeft = 0;
+          this.multiplier = 1;
+          this.combo = 0;
+          this.bgRect.fillColor = COLORS.BG;
+          this.feverText.setText('');
+        }
+
+        cleanupWall(data) {
+          if (!data) return;
+          if (data.wall && data.wall.active) data.wall.destroy(true);
+          if (this.textures.exists(data.textureKey)) this.textures.remove(data.textureKey);
+          this.wallData.delete(data.id);
+        }
+
+        handleGameOver() {
+          if (this.gameOver) return;
+          this.gameOver = true;
+          this.playBeep(180, 0.22, 'sawtooth');
+          this.cameras.main.shake(200, 0.035);
+          this.shatterPlayer();
+
+          if (this.score > this.highScore) {
+            this.highScore = this.score;
+            localStorage.setItem('perfect_fit_high_score', this.highScore);
+          }
+
+          this.time.delayedCall(160, () => {
+            this.goScore.setText(`Score: ${this.score}`);
+            this.goHigh.setText(`High Score: ${this.highScore}`);
+            this.goShard.setText(`Total Shards: ${this.totalShards}`);
+            this.overlay.setVisible(true);
+          });
+        }
+
+        shatterPlayer() {
+          const worldParts = this.playerParts.map((p) => ({
+            x: this.playerContainer.x + p.x,
+            y: this.playerContainer.y + p.y,
+            w: p.width,
+            h: p.height,
+          }));
+          this.playerContainer.setVisible(false);
+
+          const shards = [];
+          worldParts.forEach((part) => {
+            const cols = 6;
+            const rows = 4;
+            const cw = part.w / cols;
+            const ch = part.h / rows;
+            for (let i = 0; i < cols; i++) {
+              for (let j = 0; j < rows; j++) {
+                const px = part.x - part.w / 2 + i * cw + cw / 2;
+                const py = part.y - part.h / 2 + j * ch + ch / 2;
+                const piece = this.add.rectangle(px, py, cw - 1, ch - 1, COLORS.PLAYER);
+                shards.push(piece);
+                const angle = Phaser.Math.FloatBetween(-Math.PI, Math.PI);
+                const force = Phaser.Math.FloatBetween(120, 380);
+                this.tweens.add({
+                  targets: piece,
+                  x: px + Math.cos(angle) * force,
+                  y: py + Math.sin(angle) * force,
+                  angle: Phaser.Math.Between(-300, 300),
+                  alpha: 0,
+                  duration: Phaser.Math.Between(450, 800),
+                  ease: 'Cubic.easeOut',
+                  onComplete: () => piece.destroy(),
+                });
+              }
+            }
+          });
+        }
+
+        restartGame() {
+          // instant scene reset
+          this.scene.restart();
+        }
+      }
+
+      const config = {
+        type: Phaser.AUTO,
+        width: GAME_W,
+        height: GAME_H,
+        parent: 'game-wrap',
+        backgroundColor: '#000000',
+        antialias: true,
+        scene: [PerfectFitScene],
+      };
+
+      new Phaser.Game(config);
+    })();
+  </script>
+</body>
+</html>
